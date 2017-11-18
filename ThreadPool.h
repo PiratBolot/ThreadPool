@@ -1,3 +1,8 @@
+/**
+ *
+ *
+ */
+
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
 
@@ -14,14 +19,24 @@
 
 class ThreadPool {
 public:
-    explicit ThreadPool(size_t);
+    
+    /**
+     *
+     */
+    explicit ThreadPool(size_t threadsNumber);
 
-    template<class F, class... Args>
-    auto enqueue(F&& f, Args&&... args)
-    ->std::future<typename std::result_of<F(Args...)>::type>;
-
+    /**
+     * Add a new task to the task queue
+     */
+    template<class T, class... Args>
+    auto enqueue(T&& f, Args&&... args)
+    ->std::future<typename std::result_of<T(Args...)>::type>;
+    
+    /**
+     * Join all worker threads 
+     */
     void joinAll();
-
+    
     void waitAll();
 
     ~ThreadPool();
@@ -41,12 +56,12 @@ private:
     std::condition_variable wait_var;
 };
 
-// the constructor just launches some amount of workers
-inline ThreadPool::ThreadPool(size_t threads) : bailout(false), stop(false)
-{
+// Initialize a specified number of worker threads
+inline ThreadPool::ThreadPool(size_t threadsNumber) : bailout(false), stop(false) {
+    
     // if the number of threads less than the number that system can hadle concurrently, this value will be set
-    if (threads < std::thread::hardware_concurrency()) {
-        threads = std::thread::hardware_concurrency();
+    if (threadsNumber < std::thread::hardware_concurrency()) {
+        threadsNumber = std::thread::hardware_concurrency();
     }
     for (size_t i = 0; i < threads; ++i)
         workers.emplace_back([this]() {
