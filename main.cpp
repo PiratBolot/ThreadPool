@@ -6,30 +6,97 @@
 
 std::mutex m;
 
+struct SS {
+public:
+	int foo(int i) {
+		{
+			std::lock_guard<std::mutex> lock(m);
+			std::cout << "Hello foo #" << i << std::endl;
+		}
+		return i;
+	}
+
+	static int staticFoo(int i) {
+		{
+			std::lock_guard<std::mutex> lock(m);
+			std::cout << "Hello staticFoo #" << i << std::endl;
+		}
+		return i;
+	}
+};
+
+auto lambdaFoo = [](int i) -> int {
+	{
+		std::lock_guard<std::mutex> lock(m);
+		std::cout << "Hello lambdaFoo #" << i << std::endl;
+	}
+	return i;
+};
+
+int globalFoo(int i) {
+	{
+		std::lock_guard<std::mutex> lock(m);
+		std::cout << "Hello globalFoo #" << i << std::endl;
+	}
+	return i;
+}
+
 int main()
 {
+	ThreadPool pool(10);
+	std::vector< std::future<int> > results;
+	SS a;
+	int count = 60;
+	
+	// Add class method
+	for (int i = 0; i < count; ++i) {
+		results.emplace_back(
+			pool.enqueue(&SS::foo, a, i)
+		);
+	}
 
-    ThreadPool pool(4);
-    std::vector< std::future<int> > results;
+	// Add class static method
+	for (int i = 0; i < count; ++i) {
+		results.emplace_back(
+			pool.enqueue(&SS::staticFoo, i)
+		);
+	}
+	
+	// Add finished lambda
+	for (int i = 0; i < count; ++i) {
+		results.emplace_back(
+			pool.enqueue(lambdaFoo, i)
+		);
+	}
 
-    for (int i = 0; i < 8; ++i) {
-        results.emplace_back(
-                pool.enqueue([i] {
-                    std::lock_guard<std::mutex> lock(m);
-                    std::cout << "hello " << i << std::endl;
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    std::cout << "world " << i << std::endl;
-                    return i*i;
-                })
-        );
-    }
+	// Add global function
+	for (int i = 0; i < count; ++i) {
+		results.emplace_back(
+			pool.enqueue(globalFoo, i)
+		);
+	}
 
-    pool.joinAll();
+	// Define and add lambda
+	for (int i = 0; i < count; ++i) {
+		results.emplace_back(
+			pool.enqueue([i]() -> int {
+				{
+					std::lock_guard<std::mutex> lock(m);
+					std::cout << "Hello localLambda #" << i << std::endl;
+				}
+				return i;
+		})
+		);
+	}
 
-    for (auto && result : results)
-        std::cout << result.get() << ' ';
-    std::cout << std::endl;
+	//std::this_thread::sleep_for(std::chrono::seconds(10));
 
-    system("pause");
-    return 0;
+	pool.joinAll();
+
+	for (auto && result : results)
+		std::cout << result.get() << ' ';
+	std::cout << std::endl;
+
+	system("pause");
+	return 0;
 }
